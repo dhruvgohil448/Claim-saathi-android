@@ -12,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +61,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.claimsaathi.app.R
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -329,12 +333,12 @@ fun TopBar(title: String, onBack: (() -> Unit)? = null) {
 
 @Composable
 fun BrandMark(size: Int = 72) {
-    Box(
-        Modifier.size(size.dp).clip(RoundedCornerShape((size * 0.24).dp)).background(Primary),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("+", color = Color.White, fontSize = (size * 0.46).sp, fontWeight = FontWeight.Black)
-    }
+    Image(
+        painter = painterResource(R.drawable.ic_brand),
+        contentDescription = "Claim Saathi",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.size(size.dp).clip(RoundedCornerShape((size * 0.22).dp))
+    )
 }
 
 @Composable
