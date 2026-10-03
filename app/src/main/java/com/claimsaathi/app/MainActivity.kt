@@ -44,7 +44,7 @@ import com.claimsaathi.app.ui.AddPolicyScreen
 import com.claimsaathi.app.ui.AlertsTab
 import com.claimsaathi.app.ui.AppTab
 import com.claimsaathi.app.ui.AppVm
-import com.claimsaathi.app.ui.AssistantTab
+import com.claimsaathi.app.ui.ChatTab
 import com.claimsaathi.app.ui.BankScreen
 import com.claimsaathi.app.ui.ChecklistScreen
 import com.claimsaathi.app.ui.ClaimSaathiTheme
@@ -156,7 +156,7 @@ private fun Root(vm: AppVm = viewModel()) {
                         startClaim = { nav.navigate("start") }
                     )
                     AppTab.Claims -> ClaimsTab(vm) { nav.navigate("claim/$it") }
-                    AppTab.Assistant -> AssistantTab(vm)
+                    AppTab.Assistant -> ChatTab(vm)
                     AppTab.Alerts -> AlertsTab(vm) { nav.navigate("claim/$it") }
                     AppTab.Profile -> ProfileTab(vm, { nav.navigate("bank") }) {
                         vm.logout()
@@ -207,7 +207,7 @@ private fun Root(vm: AppVm = viewModel()) {
 private enum class Bar(val tab: AppTab, val label: String, val icon: ImageVector) {
     Home(AppTab.Home, "Home", Icons.Filled.Home),
     Claims(AppTab.Claims, "Claims", Icons.AutoMirrored.Outlined.ListAlt),
-    Assistant(AppTab.Assistant, "AI", Icons.Outlined.AutoAwesome),
+    Assistant(AppTab.Assistant, "Chat", Icons.Outlined.AutoAwesome),
     Alerts(AppTab.Alerts, "Alerts", Icons.Filled.Notifications),
     Profile(AppTab.Profile, "Profile", Icons.Filled.Person)
 }

@@ -100,6 +100,7 @@ data class Policy(
     val waitingPeriods: List<WaitingPeriod> = emptyList(),
     val exclusions: List<String> = emptyList(),
     val members: List<Member>? = null,
+    val isTemplate: Boolean = false,
     val analysis: PolicyAnalysis? = null,
     val summary: String? = null,
     val claims: List<PolicyClaimRef>? = null
@@ -150,8 +151,95 @@ data class Claim(
     val policy: PolicyRef? = null,
     val settlement: Settlement? = null,
     val checklist: HomeChecklist? = null,
+    val roomRentPerDay: Int? = null,
+    val isTemplate: Boolean = false,
+    val warnings: List<AmountWarning> = emptyList(),
     @JsonNames("_count") val count: Counts? = null
 )
+
+@Serializable
+data class AmountWarning(val code: String = "", val severity: String = "info", val message: String = "", val field: String? = null, val claimId: String? = null, val claimNumber: String? = null)
+
+@Serializable
+data class PreviewEstimate(val billAmount: Int = 0, val approvedAmount: Int = 0, val coPayAmount: Int = 0, val outOfPocket: Int = 0)
+
+@Serializable
+data class PreviewResult(
+    val warnings: List<AmountWarning> = emptyList(),
+    val hasBlocking: Boolean = false,
+    val sumInsured: Int? = null,
+    val usedSumInsured: Int? = null,
+    val remainingSumInsured: Int? = null,
+    val roomRentLimit: Int? = null,
+    val coPayPercent: Double? = null,
+    val estimate: PreviewEstimate? = null
+)
+
+@Serializable
+data class PreviewBody(
+    val policyId: String? = null,
+    val type: String,
+    val estimatedAmount: Int? = null,
+    val billAmount: Int? = null,
+    val roomRentPerDay: Int? = null,
+    val days: Int? = null,
+    val reason: String? = null,
+    val treatment: String? = null,
+    val admissionDate: String? = null
+)
+
+@Serializable
+data class ClaimTemplate(
+    val claimType: String = "REIMBURSEMENT",
+    val policyId: String? = null,
+    val hospital: String = "",
+    val hospitalCity: String? = null,
+    val isNetworkHospital: Boolean? = null,
+    val reason: String = "",
+    val treatment: String? = null,
+    val admissionType: String? = null,
+    val admissionDate: String? = null,
+    val dischargeDate: String? = null,
+    val days: Int? = null,
+    val roomType: String? = null,
+    val roomRentPerDay: Int? = null,
+    val estimatedAmount: Int? = null,
+    val billAmount: Int? = null,
+    val patientName: String? = null,
+    val patientDetails: PatientDetails? = null
+)
+
+@Serializable
+data class DemoTemplates(val policyId: String? = null, val policyNumber: String? = null, val preauth: ClaimTemplate? = null, val reimbursement: ClaimTemplate? = null, val consentOtp: String? = null)
+
+@Serializable
+data class FinanceAccount(val id: String = "", val bankName: String = "", val accountType: String = "", val maskedNumber: String = "", val ifsc: String? = null, val balance: Double = 0.0, val isPrimary: Boolean = false, val linkedForPayouts: Boolean = false)
+@Serializable
+data class ExpenseCategory(val category: String = "", val amount: Double = 0.0, val percent: Double = 0.0)
+@Serializable
+data class MonthlyExpenses(val month: String? = null, val label: String? = null, val total: Double = 0.0, val categories: List<ExpenseCategory> = emptyList())
+@Serializable
+data class MedicalSpend(val totalMedicalSpend: Double = 0.0, val insurerPaid: Double = 0.0, val outOfPocket: Double = 0.0, val insurerPaidPercent: Double = 0.0, val settledClaims: Int = 0, val pendingClaims: Int = 0, val thisMonthMedicalExpense: Double = 0.0)
+@Serializable
+data class Payout(val claimId: String? = null, val claimNumber: String = "", val hospital: String? = null, val amount: Double = 0.0, val utr: String? = null, val paidAt: String? = null, val creditedTo: String? = null)
+@Serializable
+data class Finance(val isDemo: Boolean = true, val note: String? = null, val accounts: List<FinanceAccount> = emptyList(), val totalBalance: Double = 0.0, val monthlyExpenses: MonthlyExpenses = MonthlyExpenses(), val medical: MedicalSpend = MedicalSpend(), val payouts: List<Payout> = emptyList(), val totalPayouts: Double = 0.0)
+@Serializable
+data class ChatCard(
+    val type: String = "",
+    val title: String? = null,
+    val total: Double? = null,
+    val month: String? = null,
+    val accounts: List<FinanceAccount> = emptyList(),
+    val categories: List<ExpenseCategory> = emptyList(),
+    val payouts: List<Payout> = emptyList(),
+    val totalMedicalSpend: Double? = null,
+    val insurerPaid: Double? = null,
+    val outOfPocket: Double? = null,
+    val insurerPaidPercent: Double? = null
+)
+@Serializable
+data class ChatSuggestions(val greeting: String? = null, val suggestions: List<String> = emptyList())
 
 @Serializable
 data class Deduction(val label: String = "", val amount: Int = 0, val reason: String? = null, val clause: String? = null)
@@ -364,6 +452,8 @@ data class ChatReply(
     val intent: String = "",
     val sources: List<String> = emptyList(),
     val followUps: List<String> = emptyList(),
+    val suggestions: List<String> = emptyList(),
+    val cards: List<ChatCard> = emptyList(),
     val grounded: Grounded? = null,
     val ai: String? = null
 )
@@ -394,7 +484,8 @@ data class Home(
     val currentClaim: Claim? = null,
     val pendingActions: List<PendingAction> = emptyList(),
     val counts: HomeCounts = HomeCounts(),
-    val paidOut: Int = 0
+    val paidOut: Int = 0,
+    val warnings: List<AmountWarning> = emptyList()
 )
 
 @Serializable
@@ -445,6 +536,9 @@ data class PreauthResponse(val ok: Boolean = true, val estimate: Settlement? = n
     val admissionDate: String? = null,
     val dischargeDate: String? = null,
     val days: Int? = null,
+    val roomType: String? = null,
+    val roomRentPerDay: Int? = null,
+    val isNetworkHospital: Boolean? = null,
     val billAmount: Int? = null,
     val estimatedAmount: Int? = null,
     val patientName: String,

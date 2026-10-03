@@ -107,6 +107,18 @@ interface ClaimSaathiApi {
         @Part("type") type: RequestBody?
     ): ClaimQuery
 
+    @POST("claims/preview")
+    suspend fun preview(@Body body: PreviewBody): PreviewResult
+
+    @GET("demo/templates")
+    suspend fun templates(): DemoTemplates
+
+    @GET("me/finance")
+    suspend fun finance(): Finance
+
+    @GET("ai/suggestions")
+    suspend fun chatSuggestions(): ChatSuggestions
+
     @POST("ai/chat")
     suspend fun chat(@Body body: ChatBody): ChatReply
 

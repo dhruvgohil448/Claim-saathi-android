@@ -110,13 +110,34 @@ fun stepColor(state: StepState) = when (state) {
     else -> Muted
 }
 
+const val MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+private fun mimeFor(name: String, given: String?): String {
+    if (given != null && given != "application/octet-stream") return given
+    return when (name.substringAfterLast('.', "").lowercase()) {
+        "pdf" -> "application/pdf"; "png" -> "image/png"; "heic", "heif" -> "image/heic"; "webp" -> "image/webp"
+        else -> "image/jpeg"
+    }
+}
+
+/** Multipart part named "file" for claim docs, query replies and policy PDFs (pdf / jpg / png / heic, max 10 MB). */
 fun Context.filePart(uri: Uri): MultipartBody.Part {
-    val mime = contentResolver.getType(uri) ?: "application/octet-stream"
     val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
         if (cursor.moveToFirst()) cursor.getString(0) else null
     } ?: "upload"
-    val bytes = contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-    return MultipartBody.Part.createFormData("file", name, bytes.toRequestBody(mime.toMediaType()))
+    val mime = mimeFor(name, contentResolver.getType(uri))
+    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("Could not read the selected file.")
+    if (bytes.isEmpty()) throw IllegalStateException("The selected file is empty.")
+    if (bytes.size > MAX_UPLOAD_BYTES) throw IllegalStateException("File is larger than 10 MB. Pick a smaller file or take a clearer photo.")
+    val fileName = if (name.contains('.')) name else "$name." + (if (mime == "application/pdf") "pdf" else if (mime == "image/png") "png" else "jpg")
+    return MultipartBody.Part.createFormData("file", fileName, bytes.toRequestBody(mime.toMediaType()))
+}
+
+/** Camera photo (TakePicturePreview bitmap) → JPEG "file" part. */
+fun android.graphics.Bitmap.jpegPart(prefix: String = "photo"): MultipartBody.Part {
+    val out = java.io.ByteArrayOutputStream()
+    compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+    return MultipartBody.Part.createFormData("file", "$prefix-${System.currentTimeMillis()}.jpg", out.toByteArray().toRequestBody("image/jpeg".toMediaType()))
 }
 
 fun String.plainBody() = toRequestBody("text/plain".toMediaType())
