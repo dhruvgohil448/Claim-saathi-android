@@ -53,6 +53,7 @@ import androidx.core.content.ContextCompat
 import com.claimsaathi.app.data.AmountWarning
 import com.claimsaathi.app.data.ChatBody
 import com.claimsaathi.app.data.ChatCard
+import com.claimsaathi.app.data.SttBody
 import com.claimsaathi.app.data.CreateClaimBody
 import com.claimsaathi.app.data.DemoTemplates
 import com.claimsaathi.app.data.Finance
@@ -251,9 +252,22 @@ fun ChatTab(vm: AppVm) {
     var error by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val voice = rememberSaathiVoice()
+    var hindi by remember { mutableStateOf(false) }
+    var recording by remember { mutableStateOf(false) }
+    var sarvamVoice by remember { mutableStateOf(false) }
+    var speakNext by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { runCatching { Network.api.voiceStatus() }.onSuccess { sarvamVoice = it.sarvam } }
+    LaunchedEffect(hindi) {
+        if (messages.size <= 1 && vm.chatPrompt == null) runCatching { Network.api.chatSuggestions(if (hindi) "hi" else null) }.onSuccess { s ->
+            s.greeting?.let { messages = listOf(ChatMsg(false, it)) }
+            chips = if (hindi) s.suggestions else (s.suggestions + QuickActions).distinct()
+        }
+    }
     LaunchedEffect(Unit) {
         if (chips.isEmpty()) chips = QuickActions
-        if (messages.isEmpty() && vm.chatPrompt == null) runCatching { Network.api.chatSuggestions() }.onSuccess { s ->
+        if (messages.isEmpty() && vm.chatPrompt == null) runCatching { Network.api.chatSuggestions(if (hindi) "hi" else null) }.onSuccess { s ->
             s.greeting?.let { messages = listOf(ChatMsg(false, it)) }
             chips = (s.suggestions + QuickActions).distinct()
         }
@@ -265,11 +279,42 @@ fun ChatTab(vm: AppVm) {
         messages = messages + ChatMsg(true, t); input = ""; sending = true; error = null
         val claimId = vm.chatClaimId ?: vm.home?.currentClaim?.id
         scope.launch {
-            runCatching { Network.api.chat(ChatBody(t, claimId)) }
-                .onSuccess { r -> messages = messages + ChatMsg(false, r.answer, r.cards); chips = r.suggestions.ifEmpty { r.followUps.ifEmpty { chips } } }
+            val speak = speakNext; speakNext = false
+            runCatching { Network.api.chat(ChatBody(t, claimId, if (hindi) "hi" else null)) }
+                .onSuccess { r -> messages = messages + ChatMsg(false, r.answer, r.cards); chips = r.suggestions.ifEmpty { r.followUps.ifEmpty { chips } }; if (speak) launch { voice.speak(r.answer, hindi) } }
                 .onFailure { error = Network.apiMessage(it) }
             sending = false
         }
+    }
+    val recognizer = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        val text = res.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!text.isNullOrBlank()) { speakNext = true; send(text) }
+    }
+    fun deviceRecognizer() {
+        val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, if (hindi) "hi-IN" else "en-IN")
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, if (hindi) "बोलिए…" else "Ask Saathi…")
+        runCatching { recognizer.launch(i) }.onFailure { error = "Voice input is not available on this device" }
+    }
+    fun startSarvam() { if (voice.startRecording()) { recording = true; error = null } else error = "Could not start the microphone" }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) startSarvam() else error = "Microphone permission is needed for voice" }
+    fun onMic() {
+        if (recording) {
+            recording = false
+            val b64 = voice.stopRecording() ?: run { error = "Recording too short, try again"; return }
+            sending = true
+            scope.launch {
+                runCatching { Network.api.stt(SttBody(b64, "audio/mp4", if (hindi) "hi" else null)) }
+                    .onSuccess { r -> sending = false; val t = r.text.orEmpty(); if (t.isNotBlank()) { speakNext = true; send(t) } else error = "Didn’t catch that, please try again" }
+                    .onFailure { sending = false; deviceRecognizer() }
+            }
+            return
+        }
+        voice.stopSpeaking()
+        if (!sarvamVoice) return deviceRecognizer()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startSarvam()
+        else micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
     LaunchedEffect(vm.chatPrompt) {
         val p = vm.chatPrompt ?: return@LaunchedEffect
@@ -279,11 +324,17 @@ fun ChatTab(vm: AppVm) {
     Column(Modifier.fillMaxSize().background(AppBackground).imePadding()) {
         Row(Modifier.fillMaxWidth().background(NavyBrush).statusBarsPadding().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SaathiAvatar(42)
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text("Ask Saathi", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(Success))
-                    Text("AI claim assistant · English & हिंदी", color = Color.White.copy(0.8f), fontSize = 12.sp)
+                    Text(if (sarvamVoice) "AI claim assistant · Voice by Sarvam AI" else "AI claim assistant · English & हिंदी", color = Color.White.copy(0.8f), fontSize = 12.sp)
+                }
+            }
+            Row(Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(0.15f)).padding(3.dp)) {
+                listOf(false to "EN", true to "हिं").forEach { (h, label) ->
+                    Text(label, color = if (hindi == h) Navy else Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (hindi == h) Color.White else Color.Transparent).clickable { hindi = h }.padding(horizontal = 10.dp, vertical = 5.dp))
                 }
             }
         }
@@ -302,6 +353,7 @@ fun ChatTab(vm: AppVm) {
                     if (!m.mine) SaathiAvatar(26)
                     Column(horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(m.text, color = if (m.mine) Color.White else Navy, modifier = Modifier.widthIn(max = 290.dp).clip(RoundedCornerShape(18.dp)).background(if (m.mine) Primary else Color.White).padding(12.dp))
+                        if (!m.mine) Text("🔊 Listen", color = Primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { scope.launch { voice.speak(m.text, hindi || m.text.any { it in '\u0900'..'\u097F' }) } }.padding(horizontal = 6.dp, vertical = 2.dp))
                         m.cards.forEach { FinanceCard(it) }
                     }
                 }
@@ -315,7 +367,10 @@ fun ChatTab(vm: AppVm) {
             }
         }
         Row(Modifier.background(Color.White).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f)) { Field("Ask about your claim or money…", input) { input = it } }
+            Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).background(if (recording) Danger else Pale).clickable(enabled = !sending || recording) { onMic() }, contentAlignment = Alignment.Center) {
+                Text(if (recording) "■" else "🎙", fontSize = 18.sp, color = if (recording) Color.White else Navy)
+            }
+            Box(Modifier.weight(1f)) { Field(if (recording) (if (hindi) "सुन रहा हूँ… रोकने के लिए ■ दबाएँ" else "Listening… tap ■ to stop") else if (hindi) "अपना सवाल लिखें या बोलें…" else "Ask about your claim or money…", input) { input = it } }
             TextButton({ send(input) }, enabled = input.isNotBlank() && !sending) { Text("Send", color = Primary, fontWeight = FontWeight.Bold) }
         }
     }

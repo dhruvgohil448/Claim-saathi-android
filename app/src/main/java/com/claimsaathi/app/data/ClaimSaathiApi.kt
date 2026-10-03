@@ -117,7 +117,22 @@ interface ClaimSaathiApi {
     suspend fun finance(): Finance
 
     @GET("ai/suggestions")
-    suspend fun chatSuggestions(): ChatSuggestions
+    suspend fun chatSuggestions(@Query("lang") lang: String? = null): ChatSuggestions
+
+    @GET("claims/{id}/prediction")
+    suspend fun prediction(@Path("id") id: String): Prediction
+
+    @GET("claims/{id}/bill-analysis")
+    suspend fun billAnalysis(@Path("id") id: String): BillAnalysis
+
+    @GET("ai/voice/status")
+    suspend fun voiceStatus(): VoiceStatus
+
+    @POST("ai/voice/stt")
+    suspend fun stt(@Body body: SttBody): SttResult
+
+    @POST("ai/voice/tts")
+    suspend fun tts(@Body body: TtsBody): TtsResult
 
     @POST("ai/chat")
     suspend fun chat(@Body body: ChatBody): ChatReply

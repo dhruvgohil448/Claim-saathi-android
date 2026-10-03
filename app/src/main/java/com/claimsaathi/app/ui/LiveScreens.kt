@@ -409,6 +409,7 @@ fun ChecklistScreen(vm: AppVm, claimId: String, onBack: () -> Unit, onUploaded: 
             if (list == null && error == null) { SkeletonCard(1); SkeletonCard(1); SkeletonCard(1) }
             list?.let {
                 AppCard { UploadProgressBar(it.progress.verified, it.progress.required) }
+                if (it.progress.verified >= 6) PredictionCard(claimId, it.progress.verified)
                 val next = it.items.firstOrNull { item -> item.status.name != "verified" }
                 if (next != null) SaathiTip("Next up: ${next.label}. Tap it, then take a photo or pick a file — I’ll check it instantly.${next.fix?.let { f -> " Tip: $f" } ?: ""}")
                 else if (it.items.isNotEmpty()) SaathiTip("All documents verified. The claims team is reviewing — you’ll get an alert for any query.")
@@ -496,7 +497,7 @@ fun ClaimsTab(vm: AppVm, onOpen: (String) -> Unit) {
 }
 
 @Composable
-fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onSettlement: () -> Unit, onDocs: () -> Unit, askSaathi: (String) -> Unit = {}) {
+fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onSettlement: () -> Unit, onDocs: () -> Unit, askSaathi: (String) -> Unit = {}, onBill: () -> Unit = {}) {
     var timeline by remember { mutableStateOf<Timeline?>(null) }
     var detail by remember { mutableStateOf<com.claimsaathi.app.data.Claim?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -534,6 +535,7 @@ fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onS
             }
             WarningList(d.warnings)
         }
+        PredictionCard(claimId, timeline?.status)
         item?.latestOpsUpdate?.let { update ->
             AppCard {
                 Text("LATEST UPDATE", color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -567,6 +569,7 @@ fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onS
         }
         if (!item?.openQueries.isNullOrEmpty()) PrimaryButton("Answer queries", onClick = onQuery)
         GhostButton("Upload documents", onClick = onDocs)
+        GhostButton("Bill analysis (AI)", onClick = onBill)
         GhostButton("Settlement", onClick = onSettlement)
         ErrorText(error)
         Spacer(Modifier.height(64.dp))

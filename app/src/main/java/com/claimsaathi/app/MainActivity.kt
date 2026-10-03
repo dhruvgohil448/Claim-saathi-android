@@ -197,8 +197,12 @@ private fun Root(vm: AppVm = viewModel()) {
                     onQuery = { nav.navigate("queries") },
                     onSettlement = { nav.navigate("settlement/$id") },
                     onDocs = { nav.navigate("checklist/$id") },
-                    askSaathi = { askSaathi(it, id) }
+                    askSaathi = { askSaathi(it, id) },
+                    onBill = { nav.navigate("bill/$id") }
                 )
+            }
+            composable("bill/{id}", listOf(navArgument("id") { type = NavType.StringType })) {
+                com.claimsaathi.app.ui.BillAnalysisScreen(it.arguments?.getString("id").orEmpty()) { nav.popBackStack() }
             }
             composable("queries") { QueriesScreen({ nav.popBackStack() }) { nav.navigate("query/$it") } }
             composable("query/{id}", listOf(navArgument("id") { type = NavType.StringType })) {

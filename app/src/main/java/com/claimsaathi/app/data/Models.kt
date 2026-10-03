@@ -545,7 +545,7 @@ data class PreauthResponse(val ok: Boolean = true, val estimate: Settlement? = n
     val patientDetails: PatientDetails? = null,
     val consentOtp: String? = null
 )
-@Serializable data class ChatBody(val message: String, val claimId: String? = null)
+@Serializable data class ChatBody(val message: String, val claimId: String? = null, val lang: String? = null)
 @Serializable data class ApiErrorBody(val error: ApiErr) {
     @Serializable data class ApiErr(val code: String = "", val message: String = "")
 }
