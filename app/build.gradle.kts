@@ -18,7 +18,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"https://charleston-computing-course-question.trycloudflare.com/api/\""
+            "\"https://productions-orbit-porter-investigated.trycloudflare.com/api/\""
         )
     }
 
