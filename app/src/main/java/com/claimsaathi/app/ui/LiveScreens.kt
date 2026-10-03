@@ -264,7 +264,7 @@ fun AddPolicyScreen(vm: AppVm, onBack: () -> Unit, onSaved: (String) -> Unit) {
     var number by remember { mutableStateOf("") }
     var sum by remember { mutableStateOf("") }
     var start by remember { mutableStateOf("2026-01-01") }
-    var room by remember { mutableStateOf("5000") }
+    var room by remember { mutableStateOf("4000") }
     var copay by remember { mutableStateOf("10") }
     var fileUri by remember { mutableStateOf<Uri?>(null) }
     var fileName by remember { mutableStateOf<String?>(null) }
@@ -291,7 +291,7 @@ fun AddPolicyScreen(vm: AppVm, onBack: () -> Unit, onSaved: (String) -> Unit) {
             if (showSources) UploadSourceRow(sources)
             fileName?.let { Text("Attached: $it", color = Success, fontSize = 13.sp) }
             ErrorText(vm.error)
-            PrimaryButton("Save policy", insurer.length >= 2 && number.length >= 3, vm.busy) {
+            PrimaryButton("Save policy", true, vm.busy) {
                 vm.work {
                     val saved = if (filePartPicked != null) {
                         val fields = buildMap {
