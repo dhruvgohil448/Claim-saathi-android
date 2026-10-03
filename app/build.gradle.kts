@@ -18,7 +18,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"https://stamps-logical-modems-dishes.trycloudflare.com/api/\""
+            "\"https://baking-picked-uncle-regardless.trycloudflare.com/api/\""
         )
     }
 
