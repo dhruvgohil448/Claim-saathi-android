@@ -90,6 +90,12 @@ private fun Root(vm: AppVm = viewModel()) {
     }
     val route = nav.currentBackStackEntryAsState().value?.destination?.route
     val showBar = route == "main"
+    val askSaathi: (String, String?) -> Unit = { prompt, claimId ->
+        vm.chatPrompt = prompt
+        vm.chatClaimId = claimId
+        vm.tab = AppTab.Assistant
+        if (route != "main") nav.popBackStack("main", inclusive = false)
+    }
     val slide = tween<IntOffset>(360)
     Scaffold(
         containerColor = com.claimsaathi.app.ui.AppBackground,
@@ -153,7 +159,8 @@ private fun Root(vm: AppVm = viewModel()) {
                         addPolicy = { nav.navigate("add-policy") },
                         openBank = { nav.navigate("bank") },
                         openProfile = { vm.tab = AppTab.Profile },
-                        startClaim = { nav.navigate("start") }
+                        startClaim = { nav.navigate("start") },
+                        askSaathi = { askSaathi(it, vm.home?.currentClaim?.id) }
                     )
                     AppTab.Claims -> ClaimsTab(vm) { nav.navigate("claim/$it") }
                     AppTab.Assistant -> ChatTab(vm)
@@ -174,7 +181,7 @@ private fun Root(vm: AppVm = viewModel()) {
             composable("start") { StartClaimScreen(vm, { nav.popBackStack() }) { nav.navigate("checklist/$it") } }
             composable("checklist/{id}", listOf(navArgument("id") { type = NavType.StringType })) { entry ->
                 val id = entry.arguments?.getString("id").orEmpty()
-                ChecklistScreen(vm, id, { nav.popBackStack() }) { nav.navigate("validation") }
+                ChecklistScreen(vm, id, { nav.popBackStack() }, { nav.navigate("validation") }, askSaathi = { askSaathi(it, id) })
             }
             composable("validation") {
                 ValidationScreen(vm.lastUpload, { nav.popBackStack() }, {
@@ -189,7 +196,8 @@ private fun Root(vm: AppVm = viewModel()) {
                     onBack = { nav.popBackStack() },
                     onQuery = { nav.navigate("queries") },
                     onSettlement = { nav.navigate("settlement/$id") },
-                    onDocs = { nav.navigate("checklist/$id") }
+                    onDocs = { nav.navigate("checklist/$id") },
+                    askSaathi = { askSaathi(it, id) }
                 )
             }
             composable("queries") { QueriesScreen({ nav.popBackStack() }) { nav.navigate("query/$it") } }

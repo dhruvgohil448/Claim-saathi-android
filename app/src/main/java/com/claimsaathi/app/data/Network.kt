@@ -67,7 +67,9 @@ object Network {
     private val client: OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(auth)
         .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
+        .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     val api: ClaimSaathiApi = Retrofit.Builder()

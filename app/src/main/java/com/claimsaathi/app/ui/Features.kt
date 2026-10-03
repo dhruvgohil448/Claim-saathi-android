@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -251,17 +252,18 @@ fun ChatTab(vm: AppVm) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
-        if (messages.isEmpty()) runCatching { Network.api.chatSuggestions() }.onSuccess { s ->
+        if (chips.isEmpty()) chips = QuickActions
+        if (messages.isEmpty() && vm.chatPrompt == null) runCatching { Network.api.chatSuggestions() }.onSuccess { s ->
             s.greeting?.let { messages = listOf(ChatMsg(false, it)) }
-            chips = s.suggestions
+            chips = (s.suggestions + QuickActions).distinct()
         }
     }
-    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1) }
+    LaunchedEffect(messages.size, sending) { val n = messages.size + (if (sending) 1 else 0); if (n > 0) listState.animateScrollToItem(n - 1) }
     fun send(text: String) {
         val t = text.trim()
         if (t.isBlank() || sending) return
         messages = messages + ChatMsg(true, t); input = ""; sending = true; error = null
-        val claimId = vm.home?.currentClaim?.id
+        val claimId = vm.chatClaimId ?: vm.home?.currentClaim?.id
         scope.launch {
             runCatching { Network.api.chat(ChatBody(t, claimId)) }
                 .onSuccess { r -> messages = messages + ChatMsg(false, r.answer, r.cards); chips = r.suggestions.ifEmpty { r.followUps.ifEmpty { chips } } }
@@ -269,24 +271,47 @@ fun ChatTab(vm: AppVm) {
             sending = false
         }
     }
+    LaunchedEffect(vm.chatPrompt) {
+        val p = vm.chatPrompt ?: return@LaunchedEffect
+        vm.chatPrompt = null
+        send(p)
+    }
     Column(Modifier.fillMaxSize().background(AppBackground).imePadding()) {
-        Column(Modifier.fillMaxWidth().background(NavyBrush).statusBarsPadding().padding(20.dp)) {
-            Text("Ask Saathi", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("Claims, cover, bank balances and medical spend", color = Color.White.copy(0.75f), fontSize = 13.sp)
-        }
-        LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), listState, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(messages) { m ->
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(m.text, color = if (m.mine) Color.White else Navy, modifier = Modifier.widthIn(max = 300.dp).clip(RoundedCornerShape(18.dp)).background(if (m.mine) Navy else Color.White).padding(12.dp))
-                    m.cards.forEach { FinanceCard(it) }
+        Row(Modifier.fillMaxWidth().background(NavyBrush).statusBarsPadding().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SaathiAvatar(42)
+            Column {
+                Text("Ask Saathi", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(Success))
+                    Text("AI claim assistant · English & हिंदी", color = Color.White.copy(0.8f), fontSize = 12.sp)
                 }
             }
-            if (sending) item { Text("Saathi is typing…", color = Muted, fontSize = 13.sp) }
+        }
+        LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp), listState, verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp)) {
+            if (messages.isEmpty() && !sending) {
+                item { Text("Try asking", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                items(QuickActions) { q ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White).clickable { send(q) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("✨", fontSize = 14.sp)
+                        Text(q, color = Navy, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    }
+                }
+            }
+            items(messages) { m ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (m.mine) Arrangement.End else Arrangement.spacedBy(8.dp)) {
+                    if (!m.mine) SaathiAvatar(26)
+                    Column(horizontalAlignment = if (m.mine) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(m.text, color = if (m.mine) Color.White else Navy, modifier = Modifier.widthIn(max = 290.dp).clip(RoundedCornerShape(18.dp)).background(if (m.mine) Primary else Color.White).padding(12.dp))
+                        m.cards.forEach { FinanceCard(it) }
+                    }
+                }
+            }
+            if (sending) item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) { SaathiAvatar(26); TypingDots() } }
             error?.let { item { Text(it, color = Danger, fontSize = 13.sp) } }
         }
         if (chips.isNotEmpty()) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                chips.forEach { c -> FilterChip(false, { send(c) }, { Text(c, fontSize = 12.sp) }, colors = chipColors2()) }
+                chips.forEach { c -> FilterChip(false, { send(c) }, { Text(c, fontSize = 12.sp, color = Navy) }, enabled = !sending, colors = chipColors2(), border = FilterChipDefaults.filterChipBorder(enabled = true, selected = false, borderColor = Primary.copy(alpha = 0.5f))) }
             }
         }
         Row(Modifier.background(Color.White).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

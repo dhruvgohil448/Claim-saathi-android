@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 val Primary = Color(0xFF00BAF2)
 val Navy = Color(0xFF002E6E)
-val AppBackground = Color(0xFFF5F8FC)
+val AppBackground = Color(0xFFF5F7FA)
 val Success = Color(0xFF12B76A)
 val Warning = Color(0xFFF79009)
 val Danger = Color(0xFFF04438)

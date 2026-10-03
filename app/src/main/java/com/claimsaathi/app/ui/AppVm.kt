@@ -28,6 +28,10 @@ class AppVm : ViewModel() {
     var error by mutableStateOf<String?>(null)
     var lastUpload by mutableStateOf<UploadResponse?>(null)
     var tab by mutableStateOf(AppTab.Home)
+    /** Set by "Ask Saathi" buttons; the chat tab sends it once and clears it. */
+    var chatPrompt by mutableStateOf<String?>(null)
+    var chatClaimId by mutableStateOf<String?>(null)
+    var claimsLoaded by mutableStateOf(false)
 
     fun logout() {
         TokenStore.token = null

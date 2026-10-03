@@ -130,15 +130,37 @@ fun Context.filePart(uri: Uri): MultipartBody.Part {
     if (bytes.isEmpty()) throw IllegalStateException("The selected file is empty.")
     if (bytes.size > MAX_UPLOAD_BYTES) throw IllegalStateException("File is larger than 10 MB. Pick a smaller file or take a clearer photo.")
     val fileName = if (name.contains('.')) name else "$name." + (if (mime == "application/pdf") "pdf" else if (mime == "image/png") "png" else "jpg")
+    if ((mime == "image/jpeg" || mime == "image/png") && bytes.size > 1_500_000) {
+        compressImage(bytes, fileName)?.let { (jpg, jpgName) ->
+            return MultipartBody.Part.createFormData("file", jpgName, jpg.toRequestBody("image/jpeg".toMediaType()))
+        }
+    }
     return MultipartBody.Part.createFormData("file", fileName, bytes.toRequestBody(mime.toMediaType()))
 }
 
 /** Camera photo (TakePicturePreview bitmap) → JPEG "file" part. */
 fun android.graphics.Bitmap.jpegPart(prefix: String = "photo"): MultipartBody.Part {
     val out = java.io.ByteArrayOutputStream()
-    compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+    downscaled(1600).compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, out)
     return MultipartBody.Part.createFormData("file", "$prefix-${System.currentTimeMillis()}.jpg", out.toByteArray().toRequestBody("image/jpeg".toMediaType()))
 }
+
+/** Keep the longest side ≤ maxSide px so uploads stay small and fast. */
+fun android.graphics.Bitmap.downscaled(maxSide: Int): android.graphics.Bitmap {
+    val longest = maxOf(width, height)
+    if (longest <= maxSide) return this
+    val r = maxSide.toFloat() / longest
+    return android.graphics.Bitmap.createScaledBitmap(this, (width * r).toInt().coerceAtLeast(1), (height * r).toInt().coerceAtLeast(1), true)
+}
+
+/** Large gallery photos → JPEG 0.7, max 1600px. Keeps the original base name (server uses it to detect doc type). */
+private fun compressImage(bytes: ByteArray, name: String): Pair<ByteArray, String>? = runCatching {
+    val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+    val out = java.io.ByteArrayOutputStream()
+    bmp.downscaled(1600).compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, out)
+    val jpg = out.toByteArray()
+    if (jpg.isEmpty() || jpg.size >= bytes.size) null else jpg to (name.substringBeforeLast('.', name) + ".jpg")
+}.getOrNull()
 
 fun String.plainBody() = toRequestBody("text/plain".toMediaType())
 
@@ -149,8 +171,8 @@ fun AppCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -
     Column(
         modifier
             .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(18.dp), ambientColor = Navy.copy(0.08f), spotColor = Navy.copy(0.12f))
-            .clip(RoundedCornerShape(18.dp))
+            .shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Navy.copy(0.06f), spotColor = Navy.copy(0.10f))
+            .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),

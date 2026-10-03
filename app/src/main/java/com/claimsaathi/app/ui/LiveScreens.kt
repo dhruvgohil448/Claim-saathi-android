@@ -28,6 +28,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material.icons.outlined.Cancel
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material.icons.outlined.LocalHospital
 import androidx.compose.material.icons.outlined.Policy
@@ -169,7 +180,8 @@ fun HomeTab(
     addPolicy: () -> Unit,
     openBank: () -> Unit,
     openProfile: () -> Unit,
-    startClaim: () -> Unit
+    startClaim: () -> Unit,
+    askSaathi: (String) -> Unit = {}
 ) {
     LaunchedEffect(Unit) {
         while (true) {
@@ -178,6 +190,7 @@ fun HomeTab(
         }
     }
     val home = vm.home
+    Box(Modifier.fillMaxSize()) {
     AppScreen(
         safeBottom = false,
         hero = {
@@ -202,6 +215,13 @@ fun HomeTab(
             }
         }
     ) {
+            if (home == null) {
+                SkeletonCard(2); SkeletonCard(3); SkeletonCard(1)
+            } else if (home.activePolicy == null) {
+                SaathiTip("Start by linking your health policy — I’ll explain your cover, room-rent limit and co-pay in simple words.")
+            } else if (home.currentClaim == null) {
+                SaathiTip("Your policy is linked. Tap “Start claim” — I’ll warn you about co-pay and room-rent limits before you submit.")
+            }
             home?.activePolicy?.let { policy ->
                 AppCard(Modifier.clickable { openPolicy(policy.id) }) {
                     Text("ACTIVE POLICY", color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -224,10 +244,7 @@ fun HomeTab(
                     Text("${if (claim.claimType.name == "CASHLESS") "Cashless pre-auth" else "Reimbursement"} · ${inr(claim.billAmount ?: claim.estimatedAmount)}${if (claim.isTemplate) " · sample" else ""}", color = Muted, fontSize = 13.sp)
                     val required = claim.checklist?.required?.size ?: 0
                     val verified = claim.checklist?.verified?.size ?: 0
-                    if (required > 0) {
-                        Text("$verified of $required documents verified", color = Muted, fontSize = 13.sp)
-                        ProgressLine(verified, required)
-                    }
+                    if (required > 0) UploadProgressBar(verified, required)
                 }
             }
             WarningList(home?.warnings.orEmpty())
@@ -237,8 +254,8 @@ fun HomeTab(
                 ActionTile(Icons.Outlined.AccountBalance, "Bank", "Payout account", Modifier.weight(1f), openBank)
             }
             Text("Needs you", color = Navy, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            if (home?.pendingActions.isNullOrEmpty()) {
-                AppCard { Text("You’re all caught up.", color = Muted) }
+            if (home != null && home.pendingActions.isNullOrEmpty()) {
+                AppCard { EmptyState(Icons.Outlined.CheckCircle, "You’re all caught up", "No pending actions. We’ll alert you when something needs you.") }
             }
             home?.pendingActions?.forEach { action ->
                 AppCard(Modifier.clickable {
@@ -250,11 +267,23 @@ fun HomeTab(
                         "COMPLETE_PROFILE" -> openProfile()
                     }
                 }) {
-                    Text(action.kind.replace('_', ' '), color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text(action.title, color = Navy, fontWeight = FontWeight.SemiBold)
+                    val tint = if (action.kind == "QUERY") Warning else Primary
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(38.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                            Icon(when (action.kind) { "QUERY" -> Icons.Outlined.HelpOutline; "MISSING_DOC", "REUPLOAD_DOC" -> Icons.Outlined.UploadFile; "ADD_BANK" -> Icons.Outlined.AccountBalance; "COMPLETE_PROFILE" -> Icons.Outlined.PersonOutline; else -> Icons.Outlined.Description }, null, tint = tint, modifier = Modifier.size(20.dp))
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(action.kind.replace('_', ' '), color = tint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(action.title, color = Navy, fontWeight = FontWeight.SemiBold)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, null, tint = Muted)
+                    }
                 }
             }
             ErrorText(vm.error)
+            Spacer(Modifier.height(64.dp))
+    }
+    SaathiFab { askSaathi("Track my claim and tell me what to do next") }
     }
 }
 
@@ -354,7 +383,7 @@ fun PolicyReaderScreen(policyId: String, onBack: () -> Unit, askAssistant: () ->
 }
 
 @Composable
-fun ChecklistScreen(vm: AppVm, claimId: String, onBack: () -> Unit, onUploaded: () -> Unit) {
+fun ChecklistScreen(vm: AppVm, claimId: String, onBack: () -> Unit, onUploaded: () -> Unit, askSaathi: (String) -> Unit = {}) {
     var list by remember { mutableStateOf<Checklist?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var validating by remember { mutableStateOf(false) }
@@ -377,14 +406,18 @@ fun ChecklistScreen(vm: AppVm, claimId: String, onBack: () -> Unit, onUploaded: 
         FadeInColumn {
             TopBar("Documents", onBack)
             ScreenTitle("Upload bills", "Camera, gallery or PDF. Validation finishes before you move on.")
+            if (list == null && error == null) { SkeletonCard(1); SkeletonCard(1); SkeletonCard(1) }
             list?.let {
-                ProgressLine(it.progress.verified, it.progress.required)
-                Text("${it.progress.verified}/${it.progress.required} verified", color = Muted, fontSize = 13.sp)
+                AppCard { UploadProgressBar(it.progress.verified, it.progress.required) }
+                val next = it.items.firstOrNull { item -> item.status.name != "verified" }
+                if (next != null) SaathiTip("Next up: ${next.label}. Tap it, then take a photo or pick a file — I’ll check it instantly.${next.fix?.let { f -> " Tip: $f" } ?: ""}")
+                else if (it.items.isNotEmpty()) SaathiTip("All documents verified. The claims team is reviewing — you’ll get an alert for any query.")
                 it.warnings.forEach { warning -> Text(warning, color = Warning, fontSize = 13.sp) }
                 it.items.forEach { item ->
                     AppCard(Modifier.clickable { pendingType = item.type }) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(item.label, color = Navy, fontWeight = FontWeight.SemiBold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(when (item.status.name) { "verified" -> Icons.Outlined.CheckCircle; "rejected" -> Icons.Outlined.Cancel; "uploaded" -> Icons.Outlined.Schedule; else -> Icons.Outlined.UploadFile }, null, tint = docColor(item.status), modifier = Modifier.size(22.dp))
+                            Text(item.label, color = Navy, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             StatusChip(item.status.name, docColor(item.status))
                         }
                         item.fileName?.let { name -> Text(name, color = Muted, fontSize = 12.sp) }
@@ -396,7 +429,9 @@ fun ChecklistScreen(vm: AppVm, claimId: String, onBack: () -> Unit, onUploaded: 
                 }
             }
             ErrorText(error ?: vm.error)
+            Spacer(Modifier.height(64.dp))
         }
+        SaathiFab { askSaathi("What documents are missing for my claim?") }
         LoadingScrim(validating || vm.busy, "Validating document…")
     }
 }
@@ -431,6 +466,7 @@ fun ClaimsTab(vm: AppVm, onOpen: (String) -> Unit) {
     var filter by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(filter) {
         runCatching { Network.api.claims(filter) }.onSuccess { vm.claims = it }.onFailure { vm.error = Network.apiMessage(it) }
+        vm.claimsLoaded = true
     }
     FadeInColumn(safeBottom = false) {
         ScreenTitle("My claims", "Tap a card to track every step.")
@@ -439,7 +475,8 @@ fun ClaimsTab(vm: AppVm, onOpen: (String) -> Unit) {
             FilterChip(filter == "QUERY_RAISED,DOCS_PENDING", { filter = "QUERY_RAISED,DOCS_PENDING" }, { Text("Action") }, colors = chipColors())
             FilterChip(filter == "SETTLED", { filter = "SETTLED" }, { Text("Settled") }, colors = chipColors())
         }
-        if (vm.claims.isEmpty()) AppCard { Text("No claims in this filter.", color = Muted) }
+        if (vm.claims.isEmpty() && !vm.claimsLoaded) { SkeletonCard(2); SkeletonCard(2) }
+        else if (vm.claims.isEmpty()) AppCard { EmptyState(Icons.Outlined.Description, "No claims here", "Start a claim from Home — it will show up here and update live.") }
         vm.claims.forEach { claim ->
             AppCard(Modifier.clickable { onOpen(claim.id) }) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -459,7 +496,7 @@ fun ClaimsTab(vm: AppVm, onOpen: (String) -> Unit) {
 }
 
 @Composable
-fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onSettlement: () -> Unit, onDocs: () -> Unit) {
+fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onSettlement: () -> Unit, onDocs: () -> Unit, askSaathi: (String) -> Unit = {}) {
     var timeline by remember { mutableStateOf<Timeline?>(null) }
     var detail by remember { mutableStateOf<com.claimsaathi.app.data.Claim?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -471,9 +508,24 @@ fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onS
         }
     }
     val item = timeline
+    val tip = when ((item?.status ?: detail?.status)?.name) {
+        "DOCS_PENDING", "CREATED", "PREAUTH_SUBMITTED" -> "Upload your documents one by one — each is verified instantly and the details fill in automatically."
+        "UNDER_REVIEW", "NEEDS_HUMAN" -> "Your claim is with the claims team. If they need anything, you’ll get a query alert here."
+        "QUERY_RAISED" -> "The insurer has a question. Tap “Answer queries” and reply with the requested file to keep things moving."
+        "APPROVED" -> "Approved! Settlement is being processed — open Settlement to see every deduction explained."
+        "SETTLED" -> "Paid. Open Settlement to see exactly why each amount was deducted."
+        "REJECTED" -> "This claim was rejected. Ask Saathi to explain why and what you can do next."
+        else -> null
+    }
+    Box(Modifier.fillMaxSize()) {
     FadeInColumn {
         TopBar("Claim tracking", onBack)
-        ScreenTitle(item?.claimNumber ?: "Claim", item?.status?.name?.let(::prettyStatus))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(item?.claimNumber ?: "Claim", color = Navy, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            item?.status?.let { StatusChip(it.name, statusColor(it)) }
+        }
+        if (item == null && error == null) SkeletonCard(4)
+        tip?.let { SaathiTip(it) }
         detail?.let { d ->
             AppCard {
                 Text(d.hospital, color = Navy, fontWeight = FontWeight.Bold)
@@ -488,14 +540,27 @@ fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onS
                 Text(update.message, color = Navy)
             }
         }
-        AppCard {
-            item?.steps?.forEach { step ->
-                Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                    if (step.state == StepState.current) PulseDot(Primary)
-                    else Box(Modifier.size(14.dp).clip(CircleShape).background(stepColor(step.state)))
-                    Column {
-                        Text(step.label, color = Navy, fontWeight = FontWeight.SemiBold)
-                        step.note?.let { Text(it, color = Muted, fontSize = 13.sp) }
+        if (!item?.steps.isNullOrEmpty()) AppCard {
+            Text("PROGRESS", color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            val steps = item?.steps.orEmpty()
+            Column {
+                steps.forEachIndexed { index, step ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(Modifier.size(22.dp).clip(CircleShape).background(if (step.state == StepState.pending) Border else stepColor(step.state)), contentAlignment = Alignment.Center) {
+                                when (step.state) {
+                                    StepState.done -> Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    StepState.failed -> Icon(Icons.Filled.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    StepState.current -> PulseDot(Color.White)
+                                    else -> {}
+                                }
+                            }
+                            if (index < steps.size - 1) Box(Modifier.size(width = 2.dp, height = 30.dp).background(if (step.state == StepState.done) Success else Border))
+                        }
+                        Column(Modifier.padding(bottom = 10.dp)) {
+                            Text(step.label, color = if (step.state == StepState.pending) Muted else Navy, fontWeight = if (step.state == StepState.current) FontWeight.Bold else FontWeight.SemiBold)
+                            step.note?.let { Text(it, color = Muted, fontSize = 12.sp) }
+                        }
                     }
                 }
             }
@@ -504,6 +569,9 @@ fun TrackingScreen(claimId: String, onBack: () -> Unit, onQuery: () -> Unit, onS
         GhostButton("Upload documents", onClick = onDocs)
         GhostButton("Settlement", onClick = onSettlement)
         ErrorText(error)
+        Spacer(Modifier.height(64.dp))
+    }
+    SaathiFab { askSaathi("Track my claim and explain the next step") }
     }
 }
 
@@ -587,6 +655,7 @@ fun SettlementScreen(claimId: String, onBack: () -> Unit) {
                     line.reason?.let { reason -> Text(reason, color = Muted, fontSize = 12.sp) }
                 }
                 KeyRow("Co-pay", inr(it.coPayAmount))
+                Text(if (it.status.name == "PAID") "PAID TO YOUR ACCOUNT" else "APPROVED AMOUNT", color = Success, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(inr(it.approvedAmount), color = Success, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                 StatusChip(it.status.name, if (it.status.name == "PAID") Success else Warning)
                 it.explanation?.let { e -> Text(e, color = Muted, fontSize = 12.sp) }
@@ -622,7 +691,7 @@ fun AlertsTab(vm: AppVm, onOpenClaim: (String) -> Unit) {
                 notes = notes.map { it.copy(read = true) }
             }
         }) { Text("Mark all read", color = Navy) }
-        if (notes.isEmpty()) AppCard { Text("No alerts yet.", color = Muted) }
+        if (notes.isEmpty()) AppCard { EmptyState(Icons.Outlined.NotificationsNone, "No alerts yet", "Claim updates in English & Hindi will appear here live.") }
         notes.forEach { note ->
             AppCard(Modifier.clickable {
                 vm.work { Network.api.markRead(note.id) }
