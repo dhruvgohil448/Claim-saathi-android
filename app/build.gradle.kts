@@ -18,7 +18,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"https://occasionally-role-subsequently-herb.trycloudflare.com/api/\""
+            "\"https://role-budgets-genuine-maps.trycloudflare.com/api/\""
         )
     }
 
