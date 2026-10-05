@@ -18,7 +18,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"https://fda-lyrics-arts-legislative.trycloudflare.com/api/\""
+            "\"https://occasionally-role-subsequently-herb.trycloudflare.com/api/\""
         )
     }
 
