@@ -18,7 +18,7 @@ android {
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"https://productions-orbit-porter-investigated.trycloudflare.com/api/\""
+            "\"https://fda-lyrics-arts-legislative.trycloudflare.com/api/\""
         )
     }
 
